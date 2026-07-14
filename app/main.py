@@ -2,7 +2,11 @@ from fastapi import FastAPI, Request, Form, Depends, HTTPException, BackgroundTa
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-import time
+import logging
+
+# Configurar logs para verlos en Render
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="kroot_super_secret_key_4815162342")
@@ -17,17 +21,25 @@ def get_current_user(request: Request):
         raise HTTPException(status_code=401, detail="No autorizado")
     return user
 
-# Función que se ejecutará en segundo plano
 def tarea_en_background(topico: str):
-    from app.crew import ejecutar_empresa
+    logger.info(f"🚀 INICIANDO AGENTES PARA: '{topico}'")
     try:
-        print(f"Iniciando agentes para: {topico}")
+        from app.crew import ejecutar_empresa
         resultado = ejecutar_empresa(topico)
-        REPORT_HISTORY.append({"topico": topico, "resultado": resultado, "estado": "Éxito"})
-        print(f"Agentes terminaron para: {topico}")
+        logger.info(f"✅ AGENTES TERMINARON CON ÉXITO PARA: '{topico}'")
+        
+        # Actualizamos el estado en el historial
+        for i, report in enumerate(REPORT_HISTORY):
+            if report["topico"] == topico and report["estado"] == "Procesando":
+                REPORT_HISTORY[i] = {"topico": topico, "resultado": resultado, "estado": "Éxito"}
+                break
+                
     except Exception as e:
-        print(f"Error en agentes para {topico}: {e}")
-        REPORT_HISTORY.append({"topico": topico, "resultado": f"Error: {str(e)}", "estado": "Fallo"})
+        logger.error(f"❌ ERROR CRÍTICO EN AGENTES PARA '{topico}': {str(e)}")
+        for i, report in enumerate(REPORT_HISTORY):
+            if report["topico"] == topico and report["estado"] == "Procesando":
+                REPORT_HISTORY[i] = {"topico": topico, "resultado": f"Error: {str(e)}\n\nConsejo: Revisa los logs de Render para más detalles.", "estado": "Fallo"}
+                break
 
 @app.get("/health")
 def health():
@@ -41,6 +53,7 @@ async def login_page(request: Request):
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     if USERS.get(username) == password:
         request.session["user"] = username
+        logger.info(f"Usuario {username} ha iniciado sesión.")
         return RedirectResponse(url="/dashboard", status_code=303)
     return templates.TemplateResponse("login.html", {"request": request, "error": "Credenciales inválidas"})
 
@@ -55,14 +68,23 @@ async def dashboard(request: Request, user: str = Depends(get_current_user)):
 @app.post("/run_crew")
 async def run_crew(
     request: Request, 
-    background_tasks: BackgroundTasks, # <-- CLAVE PARA EL PLAN FREE
+    background_tasks: BackgroundTasks,
     topico: str = Form(...), 
     user: str = Depends(get_current_user)
 ):
-    # Añadimos la tarea al background. La web responde al instante.
+    logger.info(f"📥 Petición recibida para ejecutar: '{topico}'")
+    
+    # 1. Añadimos un estado "Procesando" INMEDIATAMENTE para feedback visual
+    REPORT_HISTORY.append({
+        "topico": topico, 
+        "resultado": "⏳ Los agentes están investigando y redactando. Esto puede tardar 1 o 2 minutos. ¡Recarga esta página (F5) en un momento para ver el resultado!", 
+        "estado": "Procesando"
+    })
+    
+    # 2. Lanzamos la tarea en segundo plano
     background_tasks.add_task(tarea_en_background, topico)
     
-    # Redirigimos inmediatamente para no dar timeout de 100s
+    # 3. Redirigimos al dashboard
     return RedirectResponse(url="/dashboard", status_code=303)
 
 @app.get("/logout")
