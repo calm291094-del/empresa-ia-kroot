@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Empresa IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Panel de Control - Hola, {{ user }}</h1>
+            <a href="/logout" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Salir</a>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">Generar Nuevo Informe</h2>
+            <form method="POST" action="/run_crew" class="flex gap-4">
+                <input name="topico" type="text" placeholder="Ej: Tendencias de IA en 2024" class="flex-grow border p-2 rounded" required>
+                <button type="submit" class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 font-bold">Ejecutar Agentes</button>
+            </form>
+            <p class="text-sm text-gray-500 mt-2">Los agentes tardarán unos minutos. Recarga la página para ver el resultado.</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Historial de Informes</h2>
+            {% if reports %}
+                {% for report in reports %}
+                    <div class="border-b py-4">
+                        <div class="flex justify-between">
+                            <h3 class="font-bold text-lg">{{ report.topico }}</h3>
+                            <span class="text-sm {% if report.estado == 'Éxito' %}text-green-600{% else %}text-red-600{% endif %}">{{ report.estado }}</span>
+                        </div>
+                        <pre class="mt-2 text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded">{{ report.resultado }}</pre>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-gray-500">No hay informes generados aún.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
