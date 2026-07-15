@@ -1,16 +1,66 @@
 import logging
-from langchain_openai import ChatOpenAI
+import urllib.parse
+import time
+import random
+import requests
+from typing import Any, List, Optional
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import BaseMessage, AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 logger = logging.getLogger(__name__)
 
-# Pollinations.ai es una API 100% gratuita, de código abierto y SIN KEYS.
-# Ofrece un endpoint compatible con OpenAI que funciona excelente en servidores.
-llm_instance = ChatOpenAI(
-    model="openai", # Pollinations usa este alias para su modelo principal
-    openai_api_key="no-key-needed", # Pollinations ignora esto, es solo para que la librería no falle
-    openai_api_base="https://text.pollinations.ai/openai",
-    temperature=0.7,
-    request_timeout=60
-)
+class PollinationsChatModel(BaseChatModel):
+    model: str = "openai"
+    
+    @property
+    def _llm_type(self) -> str:
+        return "pollinations_free_chat"
 
-logger.info("✅ Cerebro de IA inicializado con Pollinations.ai (100% Gratis, Sin Keys)")
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        prompt = "\n".join([f"{m.type}: {m.content}" for m in messages])
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                encoded_prompt = urllib.parse.quote(prompt)
+                # Seed aleatorio para evitar caché y mejorar la distribución de carga en el servidor
+                seed = random.randint(1, 10000)
+                url = f"https://text.pollinations.ai/{encoded_prompt}?model=openai&seed={seed}&json=false"
+                
+                logger.info(f"🔄 Consultando a Pollinations.ai (Intento {attempt + 1}/{max_retries})...")
+                
+                response = requests.get(url, timeout=60)
+                
+                # Si nos dan 429, esperamos y reintentamos automáticamente
+                if response.status_code == 429:
+                    logger.warning("⚠️ Límite de tasa (429) detectado. Esperando 5 segundos antes de reintentar...")
+                    time.sleep(5)
+                    continue
+                    
+                if response.status_code == 200:
+                    text = response.text.strip()
+                    if len(text) > 15:
+                        logger.info("✅ Respuesta recibida con éxito.")
+                        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=text))])
+                    else:
+                        raise Exception("La respuesta de la IA fue demasiado corta o vacía.")
+                else:
+                    raise Exception(f"Error HTTP {response.status_code}: {response.text[:100]}")
+                    
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"❌ Error final al consultar Pollinations: {str(e)}")
+                    raise Exception(f"Fallo en la IA gratuita tras {max_retries} intentos: {str(e)}")
+                
+                logger.warning(f"⚠️ Intento {attempt + 1} falló: {str(e)[:80]}... Reintentando en 5s.")
+                time.sleep(5)
+
+# Instancia global que usará nuestra empresa de agentes
+llm_instance = PollinationsChatModel()

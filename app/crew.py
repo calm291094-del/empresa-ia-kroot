@@ -16,14 +16,16 @@ def ejecutar_empresa(topico: str, update_status):
     investigacion = researcher_chain.invoke({"topico": topico, "lecciones_previas": lecciones_txt})
     investigacion_texto = investigacion.content if hasattr(investigacion, 'content') else str(investigacion)
     
-    time.sleep(3) # Pausa anti-429
+    # Pausa de 5 segundos para liberar la cola de Pollinations
+    time.sleep(5)
     
     # Fase 2
     update_status("✍️ Fase 2: Redactando informe ejecutivo...")
     informe = writer_chain.invoke({"investigacion": investigacion_texto})
     informe_texto = informe.content if hasattr(informe, 'content') else str(informe)
     
-    time.sleep(3) # Pausa anti-429
+    # Pausa de 5 segundos para liberar la cola de Pollinations
+    time.sleep(5)
     
     # Fase 3
     update_status("🔎 Fase 3: Revisión de calidad y veredicto final...")
