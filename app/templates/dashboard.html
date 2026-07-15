@@ -1,42 +1,77 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Dashboard - Empresa IA</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 p-8">
-    <div class="max-w-4xl mx-auto">
-        <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">Panel de Control - Hola, {{ user }}</h1>
-            <a href="/logout" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Salir</a>
+{% extends "base.html" %}
+{% block title %}Dashboard - Kroot Corp IA{% endblock %}
+{% block page_title %}Panel de Control de Agentes{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-8">
+    
+    <!-- Generar Nuevo Informe -->
+    <div class="bg-white dark:bg-darkcard rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center">
+                <i class="fa-solid fa-wand-magic-sparkles text-xl"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Generar Nuevo Informe</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Los agentes investigarán, redactarán y criticarán el tema.</p>
+            </div>
+        </div>
+        
+        <form method="POST" action="/run_crew" class="flex flex-col sm:flex-row gap-4">
+            <input name="topico" type="text" placeholder="Ej: Tendencias de la IA en 2026, Impacto del café..." 
+                class="flex-grow px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all" required>
+            <button type="submit" class="px-6 py-3 bg-primary hover:bg-blue-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-play"></i> Ejecutar Agentes
+            </button>
+        </form>
+        <p class="text-xs text-yellow-600 dark:text-yellow-400 mt-3 flex items-center gap-1">
+            <i class="fa-solid fa-triangle-exclamation"></i> 
+            Nota: Si falla, espera 10 segundos y vuelve a intentar (límite de peticiones del proveedor gratuito).
+        </p>
+    </div>
+
+    <!-- Historial de Informes -->
+    <div class="bg-white dark:bg-darkcard rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                    <i class="fa-solid fa-clock-rotate-left text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Historial de Informes</h3>
+            </div>
+            <span class="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                {{ reports|length }} registros
+            </span>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-            <h2 class="text-xl font-semibold mb-4">Generar Nuevo Informe</h2>
-            <form method="POST" action="/run_crew" class="flex gap-4">
-                <input name="topico" type="text" placeholder="Ej: Tendencias de IA en 2024" class="flex-grow border p-2 rounded" required>
-                <button type="submit" class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 font-bold">Ejecutar Agentes</button>
-            </form>
-            <p class="text-sm text-gray-500 mt-2">Los agentes tardarán unos minutos. Recarga la página para ver el resultado.</p>
-        </div>
-
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h2 class="text-xl font-semibold mb-4">Historial de Informes</h2>
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
             {% if reports %}
                 {% for report in reports %}
-                    <div class="border-b py-4">
-                        <div class="flex justify-between">
-                            <h3 class="font-bold text-lg">{{ report.topico }}</h3>
-                            <span class="text-sm {% if report.estado == 'Éxito' %}text-green-600{% else %}text-red-600{% endif %}">{{ report.estado }}</span>
+                    <div class="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
+                            <div class="flex items-center gap-3">
+                                <h4 class="font-semibold text-gray-900 dark:text-white text-lg">{{ report.topico }}</h4>
+                                <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full 
+                                    {% if report.estado == 'Éxito' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                    {% elif report.estado == 'Procesando' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 animate-pulse
+                                    {% else %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+                                    {% if report.estado == 'Procesando' %}<i class="fa-solid fa-spinner fa-spin mr-1"></i>{% endif %}
+                                    {{ report.estado }}
+                                </span>
+                            </div>
                         </div>
-                        <pre class="mt-2 text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded">{{ report.resultado }}</pre>
+                        <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                            <pre class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">{{ report.resultado }}</pre>
+                        </div>
                     </div>
                 {% endfor %}
             {% else %}
-                <p class="text-gray-500">No hay informes generados aún.</p>
+                <div class="p-12 text-center text-gray-500 dark:text-gray-400">
+                    <i class="fa-regular fa-folder-open text-4xl mb-3 opacity-50"></i>
+                    <p>No hay informes generados aún. ¡Crea el primero!</p>
+                </div>
             {% endif %}
         </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
