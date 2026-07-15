@@ -34,7 +34,6 @@ def tarea_en_background(topico: str):
                 break
                 
     except Exception as e:
-        # Aquí capturamos el error completo con todas las líneas
         error_trace = traceback.format_exc()
         logger.error(f"❌ ERROR CRÍTICO EN AGENTES PARA '{topico}':\n{error_trace}")
         
@@ -53,7 +52,8 @@ def health():
 
 @app.get("/", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    # CORREGIDO: request va primero
+    return templates.TemplateResponse(request, "login.html")
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -61,12 +61,11 @@ async def login(request: Request, username: str = Form(...), password: str = For
         request.session["user"] = username
         logger.info(f"✅ Usuario {username} ha iniciado sesión.")
         return RedirectResponse(url="/dashboard", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Credenciales inválidas"})
+    return templates.TemplateResponse(request, "login.html", {"error": "Credenciales inválidas"})
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(get_current_user)):
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request, 
+    return templates.TemplateResponse(request, "dashboard.html", {
         "user": user, 
         "reports": REPORT_HISTORY[::-1]
     })
