@@ -1,33 +1,40 @@
-from crewai import Crew, Process
-from app.tasks import crear_tareas
-from app.memory import guardar_aprendizaje
+from app.agents import researcher_chain, writer_chain, critic_chain
+from app.memory import guardar_aprendizaje, obtener_lessons_learned
 import logging
 
 logger = logging.getLogger(__name__)
 
 def ejecutar_empresa(topico: str):
-    logger.info("🏗️ Construyendo las tareas y agentes...")
-    tareas = crear_tareas(topico)
+    logger.info("🏗️ Iniciando proceso de agentes personalizados...")
     
-    # Desactivamos la memoria interna de CrewAI para evitar que pida la API Key de OpenAI.
-    # Nuestra memoria personalizada en app/memory.py se encarga del aprendizaje.
-    empresa = Crew(
-        agents=[tareas[0].agent, tareas[1].agent, tareas[2].agent],
-        tasks=tareas,
-        process=Process.sequential,
-        verbose=True,
-        memory=False  # <-- ESTE ES EL CAMBIO CLAVE
-    )
+    # 1. Obtener lecciones previas para que la IA "aprenda"
+    lecciones = obtener_lessons_learned(topico)
+    lecciones_txt = f"Evita estos errores pasados: {lecciones}" if lecciones else "No hay errores previos registrados."
     
-    logger.info("🚀 Ejecutando la empresa (esto puede tardar 1-2 minutos)...")
-    resultado = empresa.kickoff()
+    # 2. Fase 1: Investigación
+    logger.info("🔍 Fase 1: Investigando...")
+    investigacion = researcher_chain.invoke({"topico": topico, "lecciones_previas": lecciones_txt})
+    investigacion_texto = investigacion.content if hasattr(investigacion, 'content') else str(investigacion)
     
-    # Guardamos el resultado en nuestra base de datos JSON personalizada para que "aprendan"
+    # 3. Fase 2: Redacción
+    logger.info("✍️ Fase 2: Redactando informe...")
+    informe = writer_chain.invoke({"investigacion": investigacion_texto})
+    informe_texto = informe.content if hasattr(informe, 'content') else str(informe)
+    
+    # 4. Fase 3: Crítica y Calidad
+    logger.info("🔎 Fase 3: Revisión de calidad...")
+    critica = critic_chain.invoke({"informe": informe_texto})
+    critica_texto = critica.content if hasattr(critica, 'content') else str(critica)
+    
+    # 5. Ensamblar resultado final
+    resultado_final = f"# 📊 INFORME EJECUTIVO: {topico.upper()}\n\n{informe_texto}\n\n---\n### 📝 Veredicto de Calidad (QA):\n{critica_texto}"
+    
+    # 6. Guardar aprendizaje para el futuro
     guardar_aprendizaje(
-        task_name=topico, 
-        feedback="Ejecución completada con éxito", 
-        output=str(resultado)[:500] # Guardamos un resumen para no inflar el archivo
+        task_name=topico,
+        feedback=critica_texto[:200], # Guardamos el veredicto del QA
+        output=informe_texto[:500]
     )
     
-    logger.info("✅ Proceso finalizado y aprendizaje guardado.")
-    return str(resultado)
+    logger.info("✅ Proceso finalizado con éxito.")
+    return resultado_final

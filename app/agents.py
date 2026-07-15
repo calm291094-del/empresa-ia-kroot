@@ -1,32 +1,23 @@
-from crewai import Agent
+from langchain_core.prompts import ChatPromptTemplate
 from app.llm_config import llm_instance
 
-investigador = Agent(
-    role="Investigador de Mercado Senior",
-    goal="Encontrar datos precisos, reales y tendencias actualizadas.",
-    backstory="Eres un analista experto. Tu trabajo es cavar hondo y encontrar la verdad.",
-    allow_delegation=False,
-    verbose=True,
-    llm=llm_instance,
-    max_iter=3
-)
+# 1. El Investigador
+researcher_prompt = ChatPromptTemplate.from_messages([
+    ("system", "Eres un Investigador de Mercado Senior. Tu objetivo es encontrar datos precisos, reales y tendencias actualizadas. Responde solo con hechos y datos clave, sin inventar información."),
+    ("human", "Investiga a fondo sobre: '{topico}'. {lecciones_previas}")
+])
+researcher_chain = researcher_prompt | llm_instance
 
-redactor = Agent(
-    role="Redactor de Informes Ejecutivos",
-    goal="Crear informes claros, profesionales y en formato Markdown.",
-    backstory="Eres un comunicador nato. Transformas datos crudos en informes de alto nivel.",
-    allow_delegation=False,
-    verbose=True,
-    llm=llm_instance,
-    max_iter=3
-)
+# 2. El Redactor
+writer_prompt = ChatPromptTemplate.from_messages([
+    ("system", "Eres un Redactor de Informes Ejecutivos. Transformas datos crudos en informes profesionales, claros y en formato Markdown."),
+    ("human", "Basado en esta investigación:\n\n{investigacion}\n\nRedacta un informe ejecutivo profesional con Introducción, Puntos Clave y Conclusiones.")
+])
+writer_chain = writer_prompt | llm_instance
 
-critico = Agent(
-    role="Director de Calidad (QA)",
-    goal="Revisar el informe, encontrar fallos y dar feedback constructivo.",
-    backstory="Eres el jefe estricto. Si el informe es malo, lo devuelves con instrucciones claras.",
-    allow_delegation=False,
-    verbose=True,
-    llm=llm_instance,
-    max_iter=2
-)
+# 3. El Crítico (QA)
+critic_prompt = ChatPromptTemplate.from_messages([
+    ("system", "Eres un Director de Calidad (QA). Revisas informes, encuentras fallos y das feedback constructivo. Si es bueno, apruébalo. Si es malo, explica por qué y cómo mejorarlo."),
+    ("human", "Revisa este informe y emite tu veredicto:\n\n{informe}")
+])
+critic_chain = critic_prompt | llm_instance
