@@ -5,6 +5,5 @@ python-multipart==0.0.9
 itsdangerous==2.2.0
 langchain==0.2.17
 langchain-core==0.2.43
-duckduckgo-search==6.2.6
-huggingface-hub==0.24.5
-g4f==0.2.9.0
+g4f==0.3.1.0
+curl_cffi==0.7.1
