@@ -3,8 +3,8 @@ uvicorn==0.30.1
 jinja2==3.1.4
 python-multipart==0.0.9
 itsdangerous==2.2.0
-crewai==0.70.1
-langchain-community==0.2.12
+langchain==0.2.17
+langchain-core==0.2.43
 duckduckgo-search==6.2.6
 huggingface-hub==0.24.5
 g4f==0.2.9.0
