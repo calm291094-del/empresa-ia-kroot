@@ -3,15 +3,17 @@ from typing import Any, List, Optional
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+import g4f
+from g4f.Provider import Blackbox, DeepInfra, Liaobots, Phind
+
+# Forzar a g4f a usar curl_cffi para evadir bloqueos de Render
+g4f.debug.version_check = False
 
 logger = logging.getLogger(__name__)
 
 class FallbackChatModel(BaseChatModel):
-    # TRUCO: CrewAI/LiteLLM busca estos atributos para validar el modelo.
-    # Se los damos para que no falle al parsear, aunque nuestra lógica 
-    # en _generate ignorará esto y usará las APIs gratis.
-    model: str = "gpt-3.5-turbo"
-    model_name: str = "gpt-3.5-turbo"
+    model: str = "gpt-4o"
+    model_name: str = "gpt-4o"
     temperature: float = 0.7
     
     @property
@@ -25,56 +27,39 @@ class FallbackChatModel(BaseChatModel):
         run_manager: Optional[Any] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        # Convertimos los mensajes de LangChain a un prompt de texto simple
         prompt = "\n".join([f"{m.type}: {m.content}" for m in messages])
-        
-        # Aquí es donde ocurre la magia: usamos nuestro fallback, NO litellm
         response_text = self._get_response_with_fallback(prompt)
-        
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=response_text))])
 
     def _get_response_with_fallback(self, prompt: str) -> str:
+        # Proveedores que toleran mejor las IPs de servidores (Render)
         providers = [
-            ("DuckDuckGo AI", self._try_duckduckgo),
-            ("Hugging Face (Zephyr)", self._try_huggingface),
-            ("G4F (DuckDuckGo)", self._try_g4f_safe)
+            ("Blackbox AI", Blackbox),
+            ("DeepInfra", DeepInfra),
+            ("Liaobots", Liaobots),
+            ("Phind", Phind)
         ]
 
-        for name, func in providers:
+        for name, provider in providers:
             try:
                 logger.info(f"🔄 Intentando proveedor: {name}")
-                result = func(prompt)
-                if result and len(str(result).strip()) > 10:
+                response = g4f.ChatCompletion.create(
+                    model="gpt-4o", # Blackbox y DeepInfra soportan este alias
+                    messages=[{"role": "user", "content": prompt}],
+                    provider=provider,
+                    timeout=60
+                )
+                
+                if response and isinstance(response, str) and len(response.strip()) > 10:
                     logger.info(f"✅ Éxito con: {name}")
-                    return str(result)
+                    return response
                 else:
-                    logger.warning(f"⚠️ {name} devolvió respuesta vacía o muy corta.")
+                    logger.warning(f"⚠️ {name} devolvió respuesta vacía.")
             except Exception as e:
-                logger.warning(f"⚠️ Fallo en {name}: {str(e)[:100]}...")
+                error_msg = str(e)[:100]
+                logger.warning(f"⚠️ Fallo en {name}: {error_msg}...")
                 continue
 
-        raise Exception("Todos los proveedores gratuitos fallaron. Intenta de nuevo.")
+        raise Exception("Todos los proveedores gratuitos fallaron. La IP del servidor puede estar temporalmente bloqueada. Intenta de nuevo en 5 minutos.")
 
-    def _try_duckduckgo(self, prompt: str) -> str:
-        from duckduckgo_search import DDGS
-        with DDGS() as ddgs:
-            return ddgs.chat(prompt)
-
-    def _try_huggingface(self, prompt: str) -> str:
-        from huggingface_hub import InferenceClient
-        # Modelo gratuito que no requiere token para uso básico
-        client = InferenceClient(model="HuggingFaceH4/zephyr-7b-beta")
-        return client.text_generation(prompt, max_new_tokens=500, temperature=0.7, do_sample=True)
-
-    def _try_g4f_safe(self, prompt: str) -> str:
-        import g4f
-        from g4f.Provider import DuckDuckGo
-        return g4f.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            provider=DuckDuckGo,
-            timeout=45
-        )
-
-# Instancia global que usará CrewAI
 llm_instance = FallbackChatModel()
