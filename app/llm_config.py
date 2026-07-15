@@ -6,7 +6,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 import g4f
 from g4f.Provider import Blackbox, DeepInfra, Liaobots, Phind
 
-# Forzar a g4f a usar curl_cffi para evadir bloqueos de Render
+# Desactivar chequeo de versión para evitar warnings
 g4f.debug.version_check = False
 
 logger = logging.getLogger(__name__)
@@ -32,34 +32,40 @@ class FallbackChatModel(BaseChatModel):
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=response_text))])
 
     def _get_response_with_fallback(self, prompt: str) -> str:
-        # Proveedores que toleran mejor las IPs de servidores (Render)
+        # Lista de proveedores. Si uno devuelve basura, pasa al siguiente.
         providers = [
             ("Blackbox AI", Blackbox),
-            ("DeepInfra", DeepInfra),
             ("Liaobots", Liaobots),
-            ("Phind", Phind)
+            ("Phind", Phind),
+            ("DeepInfra", DeepInfra)
         ]
 
         for name, provider in providers:
             try:
                 logger.info(f"🔄 Intentando proveedor: {name}")
                 response = g4f.ChatCompletion.create(
-                    model="gpt-4o", # Blackbox y DeepInfra soportan este alias
+                    model="gpt-4o", 
                     messages=[{"role": "user", "content": prompt}],
                     provider=provider,
                     timeout=60
                 )
                 
-                if response and isinstance(response, str) and len(response.strip()) > 10:
-                    logger.info(f"✅ Éxito con: {name}")
-                    return response
+                # VALIDACIÓN ESTRICTA:
+                if response and isinstance(response, str):
+                    response = response.strip()
+                    # Rechazamos si es muy corto o si contiene señales claras de error crudo de la API
+                    if len(response) > 30 and "Authentication Error" not in response and "data: {" not in response:
+                        logger.info(f"✅ Éxito real con: {name}")
+                        return response
+                    else:
+                        logger.warning(f"⚠️ {name} devolvió un error interno o formato no válido (falso positivo).")
                 else:
-                    logger.warning(f"⚠️ {name} devolvió respuesta vacía.")
+                    logger.warning(f"⚠️ {name} devolvió una respuesta vacía.")
             except Exception as e:
                 error_msg = str(e)[:100]
                 logger.warning(f"⚠️ Fallo en {name}: {error_msg}...")
                 continue
 
-        raise Exception("Todos los proveedores gratuitos fallaron. La IP del servidor puede estar temporalmente bloqueada. Intenta de nuevo en 5 minutos.")
+        raise Exception("Todos los proveedores gratuitos fallaron o devolvieron errores de autenticación. Intenta de nuevo en unos minutos.")
 
 llm_instance = FallbackChatModel()
