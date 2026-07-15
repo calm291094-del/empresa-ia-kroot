@@ -16,7 +16,7 @@ def ejecutar_empresa(topico: str, update_status):
     investigacion = researcher_chain.invoke({"topico": topico, "lecciones_previas": lecciones_txt})
     investigacion_texto = investigacion.content if hasattr(investigacion, 'content') else str(investigacion)
     
-    # Pausa de 5 segundos para liberar la cola de Pollinations
+    # Pausa de 5 segundos para liberar la cola de Pollinations (Anti-429)
     time.sleep(5)
     
     # Fase 2
@@ -24,7 +24,7 @@ def ejecutar_empresa(topico: str, update_status):
     informe = writer_chain.invoke({"investigacion": investigacion_texto})
     informe_texto = informe.content if hasattr(informe, 'content') else str(informe)
     
-    # Pausa de 5 segundos para liberar la cola de Pollinations
+    # Pausa de 5 segundos para liberar la cola de Pollinations (Anti-429)
     time.sleep(5)
     
     # Fase 3

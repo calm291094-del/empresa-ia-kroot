@@ -15,6 +15,14 @@ templates = Jinja2Templates(directory="app/templates")
 USERS = {"kroot": "K4815162342"}
 REPORT_HISTORY = [] 
 
+# Estado en vivo de la tarea actual
+ACTIVE_TASK = {
+    "topico": "",
+    "phase": "Esperando...",
+    "estado": "Idle",
+    "result": ""
+}
+
 def get_current_user(request: Request):
     user = request.session.get("user")
     if not user:
@@ -23,36 +31,54 @@ def get_current_user(request: Request):
 
 def tarea_en_background(topico: str):
     logger.info(f"🚀 INICIANDO AGENTES PARA: '{topico}'")
+    
+    # Función callback para que crew.py actualice la fase en tiempo real
+    def update_status(phase: str):
+        ACTIVE_TASK["phase"] = phase
+        logger.info(f"📡 Estado actualizado: {phase}")
+
+    ACTIVE_TASK["topico"] = topico
+    ACTIVE_TASK["estado"] = "Procesando"
+    ACTIVE_TASK["result"] = "Iniciando motores de IA..."
+    ACTIVE_TASK["phase"] = "Preparando entorno..."
+    
     try:
         from app.crew import ejecutar_empresa
-        resultado = ejecutar_empresa(topico)
-        logger.info(f"✅ AGENTES TERMINARON CON ÉXITO PARA: '{topico}'")
+        # ¡AQUÍ ESTÁ LA CLAVE! Pasamos el argumento update_status
+        resultado = ejecutar_empresa(topico, update_status)
         
-        for i, report in enumerate(REPORT_HISTORY):
-            if report["topico"] == topico and report["estado"] == "Procesando":
-                REPORT_HISTORY[i] = {"topico": topico, "resultado": resultado, "estado": "Éxito"}
-                break
+        ACTIVE_TASK["estado"] = "Éxito"
+        ACTIVE_TASK["result"] = resultado
+        ACTIVE_TASK["phase"] = "Completado"
+        
+        REPORT_HISTORY.append({"topico": topico, "resultado": resultado, "estado": "Éxito"})
+        logger.info(f"✅ AGENTES TERMINARON CON ÉXITO PARA: '{topico}'")
                 
     except Exception as e:
         error_trace = traceback.format_exc()
         logger.error(f"❌ ERROR CRÍTICO EN AGENTES PARA '{topico}':\n{error_trace}")
         
-        for i, report in enumerate(REPORT_HISTORY):
-            if report["topico"] == topico and report["estado"] == "Procesando":
-                REPORT_HISTORY[i] = {
-                    "topico": topico, 
-                    "resultado": f"Error: {str(e)}\n\n(Revisa los logs de Render para ver el traceback completo)", 
-                    "estado": "Fallo"
-                }
-                break
+        ACTIVE_TASK["estado"] = "Fallo"
+        ACTIVE_TASK["result"] = f"Error: {str(e)}"
+        ACTIVE_TASK["phase"] = "Fallido"
+        
+        REPORT_HISTORY.append({
+            "topico": topico, 
+            "resultado": f"Error: {str(e)}\n\n(Revisa los logs de Render para más detalles)", 
+            "estado": "Fallo"
+        })
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+@app.get("/api/status")
+async def get_status(user: str = Depends(get_current_user)):
+    """Endpoint para que el frontend consulte el estado en tiempo real"""
+    return ACTIVE_TASK
+
 @app.get("/", response_class=HTMLResponse)
 async def login_page(request: Request):
-    # CORREGIDO: request va primero
     return templates.TemplateResponse(request, "login.html")
 
 @app.post("/login")
@@ -78,13 +104,6 @@ async def run_crew(
     user: str = Depends(get_current_user)
 ):
     logger.info(f"📥 Petición recibida para ejecutar: '{topico}'")
-    
-    REPORT_HISTORY.append({
-        "topico": topico, 
-        "resultado": "⏳ Los agentes están investigando y redactando. Esto puede tardar 1 o 2 minutos. ¡Recarga esta página (F5) en un momento para ver el resultado!", 
-        "estado": "Procesando"
-    })
-    
     background_tasks.add_task(tarea_en_background, topico)
     return RedirectResponse(url="/dashboard", status_code=303)
 
