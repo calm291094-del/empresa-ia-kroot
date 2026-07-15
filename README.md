@@ -1,8 +1,16 @@
 # 🏢 Empresa IA Autónoma (Kroot Corp)
 
-Sistema multi-agente autónomo que actúa como una consultora de inteligencia artificial. Los agentes investigan, redactan informes, se critican entre sí y "aprenden" de sus errores pasados. 
+<div align="center">
+  <img src="https://github.com/calm291094-del/empresa-ia-kroot/blob/main/KrootCorp.png" alt="KrootCorp Logo" width="200">
+  <br>
+  <strong>
+    Sistema multi-agente autónomo que actúa como una consultora de inteligencia artificial. Los agentes investigan, redactan informes, se critican entre sí y "aprenden" de sus errores pasados. 
+    Diseñado específicamente para ser **100% gratuito, sin API Keys, y optimizado para ejecutarse en el plan gratuito de Render** sin consumir exceso de memoria RAM.
+  </strong>
+  <br>
+  <em>Inspirado en Tensei Shitara Slime Datta Ken y Overlord</em>
+</div>
 
-Diseñado específicamente para ser **100% gratuito, sin API Keys, y optimizado para ejecutarse en el plan gratuito de Render** sin consumir exceso de memoria RAM.
 
 ---
 
